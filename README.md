@@ -61,4 +61,12 @@ The project uses Gradle 8.9, Android Gradle Plugin 8.7.3, Kotlin 2.0.21, Compose
 6. Background playback, seek, pause, notification controls, and return to the full player.
 7. Try a DRM, live, login-only, or unsupported link and confirm Omni reports a useful failure rather than an endless loading state.
 
-See `docs/ARCHITECTURE.md` for the implementation map and `docs/ROADMAP.md` for release validation.
+See `docs/ARCHITECTURE.md` for the implementation map and `docs/ROADMAP.md` for release validation
+
+## License
+
+This project is source-available and free for personal, educational, and non-commercial use.
+
+Commercial use—including selling this software, integrating it into a paid product or service, or using it to generate revenue—requires prior written permission from the author.
+
+To request a commercial license, please contact.
