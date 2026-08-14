@@ -3,6 +3,8 @@ package com.omniplayer.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.omniplayer.app.data.MediaRepository
 import com.omniplayer.app.data.MediaToolsRepository
 import com.omniplayer.app.data.OmniSettings
@@ -11,18 +13,27 @@ import com.omniplayer.app.download.DownloadJob
 import com.omniplayer.app.download.DownloadRepository
 import com.omniplayer.app.download.asMedia
 import com.omniplayer.app.model.MediaKind
+import com.omniplayer.app.model.MoodLibraryState
+import com.omniplayer.app.model.MoodRecommendation
+import com.omniplayer.app.model.MoodRecommendationEngine
 import com.omniplayer.app.model.OmniMedia
+import com.omniplayer.app.mood.AcousticAnalysisState
+import com.omniplayer.app.mood.AcousticMoodWorker
 import com.omniplayer.app.playback.EqualizerState
 import com.omniplayer.app.playback.PlaybackController
 import com.omniplayer.app.playback.PlaybackState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -59,6 +70,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),
     )
+    val moodLibrary: StateFlow<MoodLibraryState> = preferencesRepository.moodLibrary.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        MoodLibraryState(),
+    )
+    val acousticProfiles = app.acousticMoodRepository.profiles
+    val moodRecommendations: StateFlow<Map<String, List<MoodRecommendation>>> = combine(
+        _media,
+        moodLibrary,
+        acousticProfiles,
+    ) { media, moods, profiles ->
+        MoodRecommendationEngine.recommendationMap(media, moods, profiles)
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val acousticAnalysisState: StateFlow<AcousticAnalysisState> = WorkManager.getInstance(application)
+        .getWorkInfosForUniqueWorkFlow(AcousticMoodWorker.UNIQUE_WORK)
+        .map { works ->
+            val work = works.firstOrNull { item ->
+                item.state == WorkInfo.State.RUNNING || item.state == WorkInfo.State.ENQUEUED
+            } ?: works.lastOrNull()
+            if (work == null) return@map AcousticAnalysisState()
+            val data = if (work.state == WorkInfo.State.SUCCEEDED) work.outputData else work.progress
+            AcousticAnalysisState(
+                running = work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED,
+                completed = data.getInt(AcousticMoodWorker.KEY_COMPLETED, 0),
+                total = data.getInt(AcousticMoodWorker.KEY_TOTAL, 0),
+                currentTitle = data.getString(AcousticMoodWorker.KEY_TITLE).orEmpty(),
+                failed = data.getInt(AcousticMoodWorker.KEY_FAILED, 0),
+            )
+        }
+        .onStart { emit(AcousticAnalysisState()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AcousticAnalysisState())
     val downloads: StateFlow<List<DownloadJob>> = downloadRepository.jobs.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -125,6 +169,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleFavorite(media: OmniMedia) {
         viewModelScope.launch { preferencesRepository.toggleFavorite(media.uri.toString()) }
+    }
+
+    fun createCustomMood(name: String, description: String) {
+        viewModelScope.launch { preferencesRepository.createCustomMood(name, description) }
+    }
+
+    fun deleteCustomMood(id: String) {
+        viewModelScope.launch { preferencesRepository.deleteCustomMood(id) }
+    }
+
+    fun toggleMood(media: OmniMedia, moodId: String) {
+        viewModelScope.launch {
+            preferencesRepository.toggleMoodAssignment(media.uri.toString(), moodId)
+        }
+    }
+
+    fun startAcousticAnalysis(force: Boolean = false) {
+        AcousticMoodWorker.start(getApplication(), force)
+    }
+
+    fun stopAcousticAnalysis() {
+        AcousticMoodWorker.stop(getApplication())
+    }
+
+    fun clearAcousticAnalysis() {
+        stopAcousticAnalysis()
+        viewModelScope.launch { app.acousticMoodRepository.clear() }
     }
 
     fun enqueueDownload(url: String, type: String, quality: String): UUID =

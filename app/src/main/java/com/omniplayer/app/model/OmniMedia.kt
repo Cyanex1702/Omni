@@ -14,6 +14,7 @@ data class OmniMedia(
     val uri: Uri,
     val sizeBytes: Long = 0,
     val kind: MediaKind,
+    val dateModifiedSeconds: Long = 0,
     val dateAddedSeconds: Long = 0,
     val mimeType: String? = null,
     val artworkUri: Uri? = null,

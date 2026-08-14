@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omniplayer.app.model.MediaKind
+import com.omniplayer.app.model.MoodDefinition
 import com.omniplayer.app.model.OmniMedia
 import com.omniplayer.app.model.asFileSize
 import com.omniplayer.app.ui.theme.OmniOrange
@@ -80,6 +81,8 @@ fun HomeScreen(
     onPlay: (OmniMedia) -> Unit,
     onFavorite: (OmniMedia) -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenMusic: () -> Unit,
+    onOpenVideos: () -> Unit,
     onNotifications: () -> Unit,
     onNewDownload: (String) -> Unit,
 ) {
@@ -121,6 +124,13 @@ fun HomeScreen(
                     }
                     BrandLogo(Modifier.size(42.dp), circular = true)
                 }
+                Spacer(Modifier.height(14.dp))
+                MediaSectionSwitcher(
+                    selected = MediaSection.ALL,
+                    onAll = {},
+                    onMusic = onOpenMusic,
+                    onVideos = onOpenVideos,
+                )
             }
 
             item {
@@ -186,7 +196,7 @@ fun HomeScreen(
 
             if (recents.isNotEmpty()) {
                 item {
-                    OmniSectionHeading("Continue listening", "View all", onOpenLibrary)
+                    OmniSectionHeading("Continue watching or listening", "View all", onOpenLibrary)
                     Spacer(Modifier.height(10.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(recents, key = { it.uri.toString() }) { item ->
@@ -251,18 +261,21 @@ private fun ContinueCard(item: OmniMedia, onClick: () -> Unit) {
     }
 }
 
-private data class Mood(val name: String, val icon: ImageVector, val color: Color)
 
 @Composable
 fun BrowseScreen(
     media: List<OmniMedia>,
     favoriteUris: Set<String>,
+    moods: List<MoodDefinition>,
+    recommendationCounts: Map<String, Int>,
     contentPadding: PaddingValues,
     onNewDownload: () -> Unit,
     onPlay: (OmniMedia) -> Unit,
     onFavorite: (OmniMedia) -> Unit,
     onOpenLibrary: () -> Unit,
     onNotifications: () -> Unit,
+    onOpenMood: (MoodDefinition) -> Unit,
+    onManageMoods: () -> Unit,
 ) {
     var search by remember { mutableStateOf("") }
     val audio = media.filter {
@@ -271,14 +284,6 @@ fun BrowseScreen(
     }
     val featured = audio.firstOrNull() ?: media.firstOrNull()
     val collections = audio.groupBy { it.album }.entries.take(6)
-    val moods = listOf(
-        Mood("Chill", Icons.Rounded.Headphones, OmniPurple),
-        Mood("Workout", Icons.Rounded.FitnessCenter, OmniPink),
-        Mood("Focus", Icons.Rounded.SportsEsports, Color(0xFF4C82FF)),
-        Mood("Party", Icons.Rounded.LocalFireDepartment, OmniOrange),
-        Mood("Romance", Icons.Rounded.Favorite, OmniPink),
-        Mood("Sleep", Icons.Rounded.Bedtime, Color(0xFF6C65D8)),
-    )
 
     OmniBackground {
         LazyColumn(
@@ -352,13 +357,34 @@ fun BrowseScreen(
             }
 
             item {
-                OmniSectionHeading("Browse by mood")
+                OmniSectionHeading("Browse by mood", "See all", onManageMoods)
                 Spacer(Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    moods.chunked(3).forEach { row ->
+                    moods.take(6).chunked(3).forEach { row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            row.forEach { mood -> MoodChip(mood, Modifier.weight(1f)) }
+                            row.forEach { mood ->
+                                MoodChip(
+                                    mood = mood,
+                                    count = recommendationCounts[mood.id] ?: 0,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onOpenMood(mood) },
+                                )
+                            }
                         }
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onManageMoods),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(15.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    ) {
+                        Text(
+                            "+ Create and describe your own mood",
+                            Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
@@ -409,17 +435,26 @@ fun BrowseScreen(
 }
 
 @Composable
-private fun MoodChip(mood: Mood, modifier: Modifier = Modifier) {
+private fun MoodChip(
+    mood: MoodDefinition,
+    count: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val color = Color(mood.colorArgb)
     Surface(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         color = OmniSurfaceHigh,
         shape = RoundedCornerShape(15.dp),
-        border = BorderStroke(1.dp, OmniOutline),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.4f)),
     ) {
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(mood.icon, null, tint = mood.color, modifier = Modifier.size(18.dp))
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(moodIcon(mood), null, tint = color, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(7.dp))
-            Text(mood.name, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Column {
+                Text(mood.name, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                Text("$count songs", color = color, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            }
         }
     }
 }

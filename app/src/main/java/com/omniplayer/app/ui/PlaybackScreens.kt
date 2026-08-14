@@ -24,12 +24,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Favorite
@@ -83,6 +86,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.omniplayer.app.model.MediaKind
+import com.omniplayer.app.model.MoodDefinition
+import com.omniplayer.app.model.MoodRecommendation
 import com.omniplayer.app.model.OmniMedia
 import com.omniplayer.app.model.asDuration
 import com.omniplayer.app.playback.EqualizerState
@@ -106,6 +111,11 @@ fun NowPlayingScreen(
     playerAppearance: String,
     isFavorite: Boolean,
     onFavorite: () -> Unit,
+    moods: List<MoodDefinition>,
+    currentMoodMatches: List<MoodRecommendation>,
+    manualMoodIds: Set<String>,
+    onToggleMood: (MoodDefinition) -> Unit,
+    onManageMoods: () -> Unit,
 ) {
     var seekPosition by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
@@ -113,6 +123,7 @@ fun NowPlayingScreen(
     var showTimer by remember { mutableStateOf(false) }
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    var showMoods by remember { mutableStateOf(false) }
     LaunchedEffect(state.positionMs, dragging) {
         if (!dragging) seekPosition = state.positionMs.toFloat()
     }
@@ -124,6 +135,18 @@ fun NowPlayingScreen(
                 onSleepTimer(it)
                 showTimer = false
             },
+        )
+    }
+
+    if (showMoods && current != null && current.kind == MediaKind.AUDIO) {
+        MoodAssignmentDialog(
+            song = current,
+            moods = moods,
+            manuallySelected = manualMoodIds,
+            suggested = currentMoodMatches.mapTo(mutableSetOf()) { it.mood.id },
+            onToggle = onToggleMood,
+            onManageMoods = onManageMoods,
+            onDismiss = { showMoods = false },
         )
     }
 
@@ -159,12 +182,44 @@ fun NowPlayingScreen(
                 )
                 Text(state.artist, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            IconButton(
+                onClick = { showMoods = true },
+                enabled = current?.kind == MediaKind.AUDIO,
+            ) {
+                Icon(Icons.Rounded.AutoAwesome, "Edit song moods", tint = MaterialTheme.colorScheme.primary)
+            }
             IconButton(onClick = onFavorite, enabled = current != null) {
                 Icon(
                     if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     "Favorite",
                     tint = if (isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onBackground,
                 )
+            }
+        }
+        if (current?.kind == MediaKind.AUDIO) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                contentPadding = PaddingValues(vertical = 3.dp),
+            ) {
+                if (currentMoodMatches.isEmpty()) {
+                    item {
+                        Surface(
+                            onClick = { showMoods = true },
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text("Add moods", Modifier.padding(start = 6.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                } else {
+                    items(currentMoodMatches, key = { it.mood.id }) { match ->
+                        MoodPill(mood = match.mood, onClick = { showMoods = true })
+                    }
+                }
             }
         }
         if (state.error != null) {

@@ -93,6 +93,10 @@ class YtDlpEngine(private val context: Context) {
     ): YoutubeDLRequest = YoutubeDLRequest(request.url).apply {
             addCommonOptions()
             addOption("--newline")
+            // --print-json enables quiet mode inside yt-dlp. Without explicitly restoring
+            // progress output, the Android callback receives only the final JSON line and the
+            // UI jumps straight from "Starting download" to "Completed".
+            addOption("--progress")
             addOption("--progress-delta", "0.25")
             addOption(
                 "--progress-template",

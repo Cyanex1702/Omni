@@ -6,7 +6,7 @@ Made by Cynex1702.
 
 This source release is licensed under GNU GPL version 3. Omni uses the GPL-licensed `youtubedl-android` runtime to run yt-dlp and FFmpeg on-device; see `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
-## Implemented in 1.2.0
+## Implemented in 1.3.0
 
 - A cohesive graphite-and-coral interface with four-tab navigation, quick link download, editorial Explore content, a storage-aware Library, a compact mini-player, and a redesigned Now Playing screen
 - Home, Explore, Downloads, Library, Settings, Queue, Lyrics, Equalizer, Ringtone Cutter, and Video-to-Audio workflows with the existing functionality preserved
@@ -24,6 +24,8 @@ This source release is licensed under GNU GPL version 3. Omni uses the GPL-licen
 - Video download at up to 360p, 720p, 1080p, or best available quality: Android-friendly MP4 is preferred, while playable WebM/MKV is retained as a fallback instead of rejecting a valid source
 - Independent WorkManager jobs with Wi-Fi-only mode, a 1–3 download concurrency gate, foreground progress, cancellation, automatic transient retries, history, and Android share/open-link support
 - Shared text and form input normalize the first valid HTTP/HTTPS media link, including links surrounded by ordinary message text
+- Live download percentage, transferred bytes, download speed, and ETA updates forced through yt-dlp even while JSON output uses quiet mode
+- Separate All Media, Music, and Videos destinations; music uses an audio-focused list while videos use a dedicated landscape-thumbnail grid
 - Media validation before completion; HTML, empty output, DRM, live streams, and unplayable files are not falsely reported as finished
 - Finished files published to `Music/Omni` or `Movies/Omni` on Android 10+, with immediate playback from the Finished tab
 - MP3 and AAC/M4A clipping, plus compatible local-video AAC extraction to M4A

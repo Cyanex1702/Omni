@@ -246,19 +246,29 @@ private fun DownloadCard(
                 }
                 Spacer(Modifier.height(6.dp))
                 if (!job.state.isFinished) {
-                    LinearProgressIndicator(
-                        progress = { job.progress / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = OmniOrange,
-                        trackColor = OmniOutline,
-                    )
+                    if (job.progress == 0 && job.bytes == 0L) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = OmniOrange,
+                            trackColor = OmniOutline,
+                        )
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { job.progress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = OmniOrange,
+                            trackColor = OmniOutline,
+                        )
+                    }
                     Spacer(Modifier.height(5.dp))
                     Text(
                         buildString {
                             append(job.bytes.asFileSize())
                             if (job.total > 0) append(" / ${job.total.asFileSize()}")
                             append("  •  ${job.progress}%")
-                            if (job.speedBytesPerSecond > 0L) append("  •  ${job.speedBytesPerSecond.asFileSize()}/s")
+                            if (job.speedBytesPerSecond > 0L) {
+                                append("  •  ↓ ${job.speedBytesPerSecond.asFileSize()}/s")
+                            }
                             if (job.etaSeconds > 0L) append("  •  ${formatDownloadEta(job.etaSeconds)} left")
                         },
                         color = OmniTextMuted,

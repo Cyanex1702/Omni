@@ -97,6 +97,11 @@ internal object DownloadProgressParser {
         """\bof\s+~?\s*([\d.]+)\s*(B|KiB|MiB|GiB|TiB)\b""",
         RegexOption.IGNORE_CASE,
     )
+    private val speedPattern = Regex(
+        """\bat\s+([\d.]+)\s*(B|KiB|MiB|GiB|TiB)/s\b""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val etaPattern = Regex("""\bETA\s+(?:(\d+):)?(\d+):(\d+)\b""", RegexOption.IGNORE_CASE)
 
     fun parse(line: String, percent: Int): ParsedDownloadProgress {
         parseStructured(line, percent)?.let { return it }
@@ -110,9 +115,21 @@ internal object DownloadProgressParser {
             else -> 1.0
         }
         val total = (number * multiplier).toLong().coerceAtLeast(0L)
+        val speed = speedPattern.find(line)?.let { speedMatch ->
+            val amount = speedMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+            (amount * unitMultiplier(speedMatch.groupValues[2])).toLong()
+        } ?: 0L
+        val eta = etaPattern.find(line)?.let { etaMatch ->
+            val hours = etaMatch.groupValues[1].toLongOrNull() ?: 0L
+            val minutes = etaMatch.groupValues[2].toLongOrNull() ?: 0L
+            val seconds = etaMatch.groupValues[3].toLongOrNull() ?: 0L
+            hours * 3_600L + minutes * 60L + seconds
+        } ?: 0L
         return ParsedDownloadProgress(
             bytes = total * percent.coerceIn(0, 100) / 100L,
             totalBytes = total,
+            speedBytesPerSecond = speed,
+            etaSeconds = eta,
             percent = percent.coerceIn(0, 100),
         )
     }
@@ -151,4 +168,12 @@ internal object DownloadProgressParser {
     private fun String.isMissing(): Boolean =
         isBlank() || equals("NA", true) || equals("N/A", true) || equals("None", true) ||
             equals("null", true)
+
+    private fun unitMultiplier(unit: String): Double = when (unit.lowercase(Locale.US)) {
+        "kib" -> 1_024.0
+        "mib" -> 1_048_576.0
+        "gib" -> 1_073_741_824.0
+        "tib" -> 1_099_511_627_776.0
+        else -> 1.0
+    }
 }

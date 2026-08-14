@@ -4,6 +4,7 @@ import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
+import com.omniplayer.app.data.AcousticMoodRepository
 import com.omniplayer.app.download.YtDlpRuntime
 import com.omniplayer.app.playback.PlaybackController
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +17,7 @@ class OmniPlayerApplication : Application(), ImageLoaderFactory {
 
     lateinit var playbackController: PlaybackController
         private set
+    val acousticMoodRepository by lazy { AcousticMoodRepository(this) }
 
     override fun onCreate() {
         super.onCreate()

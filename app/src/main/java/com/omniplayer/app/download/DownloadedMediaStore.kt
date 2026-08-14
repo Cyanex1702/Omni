@@ -177,7 +177,10 @@ internal class DownloadedMediaStore(private val context: Context) {
             if (probe.kind == MediaKind.AUDIO) {
                 put(MediaStore.Audio.Media.TITLE, source.title)
                 put(MediaStore.Audio.Media.ARTIST, source.artist)
-                put(MediaStore.Audio.Media.ALBUM, "Omni Downloads")
+                // MediaStore resolves artwork at album level. Giving every download the
+                // same album makes Android reuse the first embedded thumbnail forever.
+                // A stable per-track album identity keeps each downloaded cover distinct.
+                put(MediaStore.Audio.Media.ALBUM, "Omni Download • ${source.title.take(96)}")
             }
         }
         val resolver = context.contentResolver

@@ -67,6 +67,8 @@ class DownloadRequestTest {
         )
         assertEquals(8L * 1_048_576L, parsed.totalBytes)
         assertEquals(2L * 1_048_576L, parsed.bytes)
+        assertEquals(1_048_576L, parsed.speedBytesPerSecond)
+        assertEquals(6L, parsed.etaSeconds)
     }
 
     @Test

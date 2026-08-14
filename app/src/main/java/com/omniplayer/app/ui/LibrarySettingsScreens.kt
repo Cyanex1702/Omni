@@ -70,7 +70,7 @@ import com.omniplayer.app.ui.theme.OmniPurple
 import com.omniplayer.app.ui.theme.OmniSurfaceHigh
 import com.omniplayer.app.ui.theme.OmniTextMuted
 
-private enum class LibraryFilter(val label: String) { SONGS("Songs"), VIDEOS("Videos"), FAVORITES("Favorites") }
+private enum class LibraryFilter(val label: String) { ALL("All media"), FAVORITES("Favorites") }
 
 @Composable
 fun LibraryScreen(
@@ -81,11 +81,12 @@ fun LibraryScreen(
     onFavorite: (OmniMedia) -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenMusic: () -> Unit,
+    onOpenVideos: () -> Unit,
 ) {
-    var filter by remember { mutableStateOf(LibraryFilter.SONGS) }
+    var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     val visible = when (filter) {
-        LibraryFilter.SONGS -> media.filter { it.kind == MediaKind.AUDIO }
-        LibraryFilter.VIDEOS -> media.filter { it.kind == MediaKind.VIDEO }
+        LibraryFilter.ALL -> media
         LibraryFilter.FAVORITES -> media.filter { it.uri.toString() in favoriteUris }
     }
 
@@ -118,6 +119,13 @@ fun LibraryScreen(
                     )
                 })
                 Spacer(Modifier.height(14.dp))
+                MediaSectionSwitcher(
+                    selected = MediaSection.ALL,
+                    onAll = { filter = LibraryFilter.ALL },
+                    onMusic = onOpenMusic,
+                    onVideos = onOpenVideos,
+                )
+                Spacer(Modifier.height(4.dp))
             }
 
             item {
@@ -170,7 +178,7 @@ fun LibraryScreen(
                     "Songs",
                     "${media.count { it.kind == MediaKind.AUDIO }} tracks",
                     OmniPurple,
-                ) { filter = LibraryFilter.SONGS }
+                ) { onOpenMusic() }
             }
             item {
                 LibraryCollectionRow(
@@ -178,7 +186,7 @@ fun LibraryScreen(
                     "Videos",
                     "${media.count { it.kind == MediaKind.VIDEO }} videos",
                     Color(0xFFB793FF),
-                ) { filter = LibraryFilter.VIDEOS }
+                ) { onOpenVideos() }
             }
             item {
                 Spacer(Modifier.height(8.dp))
@@ -410,9 +418,9 @@ fun SettingsScreen(
                         "Audio is saved in Music/Omni, video in Movies/Omni, and media-tool output in Music/Omni/Tools.",
                     )
                 }
-                SettingsLink(Icons.Rounded.Info, "About Omni Player", "Version 1.2.1 • free and ad-free") {
+                SettingsLink(Icons.Rounded.Info, "About Omni Player", "Version 1.3.0 • free and ad-free") {
                     information = SettingsInformation(
-                        "Omni Player 1.2.1",
+                        "Omni Player 1.3.0",
                         "A private local media player and yt-dlp-powered downloader. Free, ad-free, account-free, and GPLv3.\n\nMade by Cynex1702.",
                         showLogo = true,
                     )

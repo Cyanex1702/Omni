@@ -28,6 +28,7 @@ class MediaRepository(private val context: Context) {
             add(MediaStore.Audio.Media.DURATION)
             add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.DATE_ADDED)
+            add(MediaStore.Audio.Media.DATE_MODIFIED)
             add(MediaStore.Audio.Media.MIME_TYPE)
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.DISPLAY_NAME)
@@ -50,6 +51,7 @@ class MediaRepository(private val context: Context) {
                     val duration = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                     val size = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                     val date = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                    val modified = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
                     val mime = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
                     val albumId = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                     val displayName = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
@@ -77,6 +79,7 @@ class MediaRepository(private val context: Context) {
                                 durationMs = cursor.getLong(duration),
                                 sizeBytes = cursor.getLong(size),
                                 dateAddedSeconds = cursor.getLong(date),
+                                dateModifiedSeconds = cursor.getLong(modified),
                                 uri = ContentUris.withAppendedId(collection, mediaId),
                                 kind = MediaKind.AUDIO,
                                 mimeType = cursor.getString(mime),
@@ -101,6 +104,7 @@ class MediaRepository(private val context: Context) {
             MediaStore.Video.Media.DURATION,
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.DATE_MODIFIED,
             MediaStore.Video.Media.MIME_TYPE,
             MediaStore.Video.Media.DISPLAY_NAME,
         )
@@ -119,6 +123,7 @@ class MediaRepository(private val context: Context) {
                     val duration = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
                     val size = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
                     val date = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+                    val modified = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
                     val mime = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
                     val displayName = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
                     while (cursor.moveToNext()) {
@@ -131,6 +136,7 @@ class MediaRepository(private val context: Context) {
                                 durationMs = cursor.getLong(duration),
                                 sizeBytes = cursor.getLong(size),
                                 dateAddedSeconds = cursor.getLong(date),
+                                dateModifiedSeconds = cursor.getLong(modified),
                                 uri = uri,
                                 kind = MediaKind.VIDEO,
                                 artist = "Video",

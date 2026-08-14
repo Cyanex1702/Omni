@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +60,10 @@ fun OmniPlayerRoot(
     val media by viewModel.media.collectAsStateWithLifecycle()
     val favorites by viewModel.favoriteUris.collectAsStateWithLifecycle()
     val recentUris by viewModel.recentUris.collectAsStateWithLifecycle()
+    val moodLibrary by viewModel.moodLibrary.collectAsStateWithLifecycle()
+    val moodRecommendations by viewModel.moodRecommendations.collectAsStateWithLifecycle()
+    val acousticProfiles by viewModel.acousticProfiles.collectAsStateWithLifecycle()
+    val acousticState by viewModel.acousticAnalysisState.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
@@ -68,11 +73,54 @@ fun OmniPlayerRoot(
     val mediaToolState by viewModel.mediaToolState.collectAsStateWithLifecycle()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    val showNavigation = currentRoute in mainDestinations.map { it.route } || currentRoute == "settings"
+    val moods = moodLibrary.moods
+    val moodCounts = remember(moodRecommendations) {
+        moodRecommendations.mapValues { (_, recommendations) -> recommendations.size }
+    }
+    val currentAudio = playback.current?.takeIf { it.kind == MediaKind.AUDIO }
+    val currentMoodMatches = remember(currentAudio, moodRecommendations) {
+        val uri = currentAudio?.uri?.toString()
+        if (uri == null) emptyList() else moodRecommendations.values
+            .mapNotNull { recommendations -> recommendations.firstOrNull { it.media.uri.toString() == uri } }
+            .sortedWith(compareByDescending<com.omniplayer.app.model.MoodRecommendation> { it.manuallyAssigned }.thenByDescending { it.score })
+            .take(4)
+    }
+    val currentManualMoodIds = currentAudio?.let {
+        moodLibrary.manualAssignments[it.uri.toString()].orEmpty()
+    }.orEmpty()
+    val librarySongs = remember(media) { media.filter { it.kind == MediaKind.AUDIO } }
+    val analyzedSongs = remember(librarySongs, acousticProfiles) {
+        librarySongs.count { song -> acousticProfiles[song.uri.toString()]?.isCurrent(song) == true }
+    }
+    val moodRoutes = setOf("moods", "mood/{id}", "acoustic_moods")
+    val mediaLibraryRoutes = setOf("library", "music_library", "video_library")
+    val showNavigation = currentRoute in mainDestinations.map { it.route } || currentRoute in moodRoutes ||
+        currentRoute in mediaLibraryRoutes || currentRoute == "settings"
     val currentPlayerRoute = if (playback.current?.kind == MediaKind.VIDEO && !playback.playAsAudio) {
         "video_player"
     } else {
         "now_playing"
+    }
+    val showForYou: () -> Unit = {
+        // "All" represents the For You/home feed. Prefer revealing the existing
+        // start destination so switching sections cannot build duplicate home pages.
+        if (!navController.popBackStack("home", inclusive = false)) {
+            navController.navigate("home") {
+                popUpTo(navController.graph.findStartDestination().id)
+                launchSingleTop = true
+            }
+        }
+    }
+    val showMediaSection: (String) -> Unit = { route ->
+        // Music and Videos behave like sibling sections. Replace the current
+        // section instead of stacking Music -> Videos -> Music indefinitely.
+        val sectionRoute = currentRoute?.takeIf { it == "music_library" || it == "video_library" }
+        navController.navigate(route) {
+            sectionRoute?.let { currentSection ->
+                popUpTo(currentSection) { inclusive = true }
+            }
+            launchSingleTop = true
+        }
     }
 
     LaunchedEffect(Unit) { requestMediaPermission() }
@@ -94,7 +142,15 @@ fun OmniPlayerRoot(
                         state = playback,
                         onOpen = { navController.navigate(currentPlayerRoute) },
                         onToggle = viewModel.playbackController::togglePlayPause,
-                        onQueue = { navController.navigate("queue") },
+                        onQueue = {
+                            navController.navigate(
+                                if (playback.current?.kind == MediaKind.VIDEO && !playback.playAsAudio) {
+                                    "video_queue"
+                                } else {
+                                    "queue"
+                                },
+                            )
+                        },
                     )
                     Surface(
                         color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
@@ -104,7 +160,8 @@ fun OmniPlayerRoot(
                         NavigationBar(containerColor = androidx.compose.ui.graphics.Color.Transparent, tonalElevation = 0.dp) {
                             mainDestinations.forEach { destination ->
                                 NavigationBarItem(
-                                    selected = currentRoute == destination.route,
+                                    selected = currentRoute == destination.route ||
+                                        (destination.route == "library" && currentRoute in mediaLibraryRoutes),
                                     onClick = {
                                         navController.navigate(destination.route) {
                                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -149,6 +206,8 @@ fun OmniPlayerRoot(
                     },
                     onFavorite = viewModel::toggleFavorite,
                     onOpenLibrary = { navController.navigate("library") },
+                    onOpenMusic = { showMediaSection("music_library") },
+                    onOpenVideos = { showMediaSection("video_library") },
                     onNotifications = { navController.navigate("downloads") },
                     onNewDownload = { text ->
                         val shared = DownloadRequest.extractUrl(text).orEmpty()
@@ -160,6 +219,8 @@ fun OmniPlayerRoot(
                 BrowseScreen(
                     media = media,
                     favoriteUris = favorites,
+                    moods = moods,
+                    recommendationCounts = moodCounts,
                     contentPadding = padding,
                     onNewDownload = { navController.navigate("new_download") },
                     onPlay = { item ->
@@ -169,6 +230,54 @@ fun OmniPlayerRoot(
                     onFavorite = viewModel::toggleFavorite,
                     onOpenLibrary = { navController.navigate("library") },
                     onNotifications = { navController.navigate("downloads") },
+                    onOpenMood = { mood -> navController.navigate("mood/${Uri.encode(mood.id)}") },
+                    onManageMoods = { navController.navigate("moods") },
+                )
+            }
+            composable("moods") {
+                MoodHubScreen(
+                    moods = moods,
+                    recommendationCounts = moodCounts,
+                    contentPadding = padding,
+                    onOpenMood = { mood -> navController.navigate("mood/${Uri.encode(mood.id)}") },
+                    onCreateMood = viewModel::createCustomMood,
+                    onDeleteMood = { mood -> viewModel.deleteCustomMood(mood.id) },
+                    onOpenAcoustic = { navController.navigate("acoustic_moods") },
+                )
+            }
+            composable("acoustic_moods") {
+                AcousticMoodScreen(
+                    state = acousticState,
+                    analyzedSongs = analyzedSongs,
+                    librarySongs = librarySongs.size,
+                    contentPadding = padding,
+                    onBack = navController::popBackStack,
+                    onStart = { viewModel.startAcousticAnalysis(false) },
+                    onRerun = { viewModel.startAcousticAnalysis(true) },
+                    onStop = viewModel::stopAcousticAnalysis,
+                    onClear = viewModel::clearAcousticAnalysis,
+                )
+            }
+            composable("mood/{id}") { entry ->
+                val moodId = entry.arguments?.getString("id").orEmpty()
+                val selectedMood = moods.firstOrNull { it.id == moodId } ?: moods.first()
+                val recommendations = moodRecommendations[selectedMood.id].orEmpty()
+                MoodDetailScreen(
+                    mood = selectedMood,
+                    recommendations = recommendations,
+                    contentPadding = padding,
+                    onBack = navController::popBackStack,
+                    onPlayMix = { queue ->
+                        queue.firstOrNull()?.let { first ->
+                            viewModel.playQueue(first, queue)
+                            navController.navigate("now_playing")
+                        }
+                    },
+                    onPlay = { item, queue ->
+                        viewModel.playQueue(item, queue)
+                        navController.navigate("now_playing")
+                    },
+                    onToggleMood = viewModel::toggleMood,
                 )
             }
             composable("downloads") {
@@ -206,6 +315,36 @@ fun OmniPlayerRoot(
                     onFavorite = viewModel::toggleFavorite,
                     onRefresh = viewModel::refreshMedia,
                     onOpenSettings = { navController.navigate("settings") },
+                    onOpenMusic = { showMediaSection("music_library") },
+                    onOpenVideos = { showMediaSection("video_library") },
+                )
+            }
+            composable("music_library") {
+                MusicLibraryScreen(
+                    media = media,
+                    favoriteUris = favorites,
+                    contentPadding = padding,
+                    onAll = showForYou,
+                    onVideos = { showMediaSection("video_library") },
+                    onPlay = { item ->
+                        viewModel.play(item)
+                        navController.navigate("now_playing")
+                    },
+                    onFavorite = viewModel::toggleFavorite,
+                )
+            }
+            composable("video_library") {
+                VideoLibraryScreen(
+                    media = media,
+                    favoriteUris = favorites,
+                    contentPadding = padding,
+                    onAll = showForYou,
+                    onMusic = { showMediaSection("music_library") },
+                    onPlay = { item ->
+                        viewModel.play(item)
+                        navController.navigate("video_player")
+                    },
+                    onFavorite = viewModel::toggleFavorite,
                 )
             }
             composable("settings") {
@@ -258,6 +397,11 @@ fun OmniPlayerRoot(
                     playerAppearance = settings.playerAppearance,
                     isFavorite = viewModel.currentMedia()?.uri.toString() in favorites,
                     onFavorite = { viewModel.currentMedia()?.let(viewModel::toggleFavorite) },
+                    moods = moods,
+                    currentMoodMatches = currentMoodMatches,
+                    manualMoodIds = currentManualMoodIds,
+                    onToggleMood = { mood -> currentAudio?.let { viewModel.toggleMood(it, mood.id) } },
+                    onManageMoods = { navController.navigate("moods") },
                 )
             }
             composable("video_player") {
@@ -266,12 +410,25 @@ fun OmniPlayerRoot(
                     current = viewModel.currentMedia(),
                     controller = viewModel.playbackController,
                     onBack = navController::popBackStack,
-                    onQueue = { navController.navigate("queue") },
+                    onQueue = { navController.navigate("video_queue") },
                     onDownload = { navController.navigate("new_download") },
                     onPlayAsAudio = {
                         viewModel.playbackController.setPlayAsAudio(true)
                         navController.navigate("now_playing") {
                             popUpTo("video_player") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable("video_queue") {
+                VideoQueueScreen(
+                    state = playback,
+                    onBack = navController::popBackStack,
+                    onPlayIndex = { index ->
+                        viewModel.playbackController.playIndex(index)
+                        navController.navigate("video_player") {
+                            popUpTo("video_queue") { inclusive = true }
+                            launchSingleTop = true
                         }
                     },
                 )

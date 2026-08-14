@@ -54,7 +54,11 @@ fun DownloadJob.asMedia(): OmniMedia? {
         artist = artist.ifBlank {
             if (mediaKind == MediaKind.AUDIO) "Omni download" else "Local video"
         },
-        album = "Omni Downloads",
+        album = if (mediaKind == MediaKind.AUDIO) {
+            "Omni Download • ${mediaTitle.ifBlank { name.substringBeforeLast('.') }.take(96)}"
+        } else {
+            "Omni Downloads"
+        },
         durationMs = durationMs,
         uri = uri,
         sizeBytes = if (total > 0) total else bytes,
